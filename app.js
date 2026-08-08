@@ -1,6 +1,9 @@
+```javascript
 let currentRoom = null;
 let currentPlayerId = null;
 let isHost = false;
+
+let roomListener = null;
 
 // ==========================
 // SCREEN SYSTEM
@@ -23,12 +26,22 @@ function goHome() {
 }
 
 function showCreate() {
-    document.getElementById("createError").textContent = "";
+    const error = document.getElementById("createError");
+
+    if (error) {
+        error.textContent = "";
+    }
+
     showScreen("createScreen");
 }
 
 function showJoin() {
-    document.getElementById("joinError").textContent = "";
+    const error = document.getElementById("joinError");
+
+    if (error) {
+        error.textContent = "";
+    }
+
     showScreen("joinScreen");
 }
 
@@ -37,13 +50,16 @@ function showJoin() {
 // ==========================
 
 function generateRoomCode() {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const chars =
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
     let code = "";
 
     for (let i = 0; i < 6; i++) {
         code += chars.charAt(
-            Math.floor(Math.random() * chars.length)
+            Math.floor(
+                Math.random() * chars.length
+            )
         );
     }
 
@@ -61,7 +77,22 @@ function generatePlayerId() {
         "_" +
         Math.random()
             .toString(36)
-            .substring(2, 8)
+            .substring(2, 9)
+    );
+}
+
+// ==========================
+// FIREBASE CHECK
+// ==========================
+
+function firebaseReady() {
+    return (
+        window.database &&
+        window.dbRef &&
+        window.dbGet &&
+        window.dbSet &&
+        window.dbUpdate &&
+        window.dbOnValue
     );
 }
 
@@ -70,42 +101,57 @@ function generatePlayerId() {
 // ==========================
 
 async function createGame() {
-    const nameInput = document.getElementById("hostName");
-    const error = document.getElementById("createError");
+    const nameInput =
+        document.getElementById("hostName");
 
-    const name = nameInput.value.trim();
+    const error =
+        document.getElementById("createError");
+
+    const name =
+        nameInput.value.trim();
 
     if (!name) {
-        error.textContent = "Գրիր քո անունը։";
+        error.textContent =
+            "Գրիր քո անունը։";
         return;
     }
 
-    if (!window.database) {
-        error.textContent = "Firebase-ը միացված չէ։";
+    if (!firebaseReady()) {
+        error.textContent =
+            "Firebase-ը ճիշտ միացված չէ։";
         return;
     }
 
-    error.textContent = "Ստեղծվում է խաղ...";
+    error.textContent =
+        "Ստեղծվում է խաղ...";
 
     try {
         let roomCode;
-        let roomExists = true;
+        let exists = true;
 
-        while (roomExists) {
-            roomCode = generateRoomCode();
+        while (exists) {
+            roomCode =
+                generateRoomCode();
 
-            const roomRef = window.dbRef(
-                window.database,
-                "rooms/" + roomCode
-            );
+            const testRef =
+                window.dbRef(
+                    window.database,
+                    "rooms/" + roomCode
+                );
 
-            const snapshot = await window.dbGet(roomRef);
+            const snapshot =
+                await window.dbGet(testRef);
 
-            roomExists = snapshot.exists();
+            exists =
+                snapshot.exists();
         }
 
-        currentRoom = roomCode;
-        currentPlayerId = generatePlayerId();
+        currentRoom =
+            roomCode;
+
+        currentPlayerId =
+            generatePlayerId();
+
         isHost = true;
 
         const player = {
@@ -121,29 +167,39 @@ async function createGame() {
             code: roomCode,
             hostId: currentPlayerId,
             status: "waiting",
+            phase: "lobby",
             createdAt: Date.now(),
+
             players: {
                 [currentPlayerId]: player
             }
         };
 
-        const roomRef = window.dbRef(
-            window.database,
-            "rooms/" + roomCode
+        const roomRef =
+            window.dbRef(
+                window.database,
+                "rooms/" + roomCode
+            );
+
+        await window.dbSet(
+            roomRef,
+            room
         );
 
-        await window.dbSet(roomRef, room);
-
         openLobby();
+
         listenToRoom();
 
         console.log(
-            "🎮 Խաղը ստեղծվեց:",
+            "🎮 Room created:",
             roomCode
         );
 
     } catch (errorObject) {
-        console.error(errorObject);
+        console.error(
+            "CREATE ERROR:",
+            errorObject
+        );
 
         error.textContent =
             "Չհաջողվեց ստեղծել խաղ։";
@@ -184,9 +240,9 @@ async function joinGame() {
         return;
     }
 
-    if (!window.database) {
+    if (!firebaseReady()) {
         error.textContent =
-            "Firebase-ը միացված չէ։";
+            "Firebase-ը ճիշտ միացված չէ։";
         return;
     }
 
@@ -218,7 +274,20 @@ async function joinGame() {
             return;
         }
 
-        currentRoom = roomCode;
+        const existingPlayers =
+            Object.keys(
+                room.players || {}
+            ).length;
+
+        if (existingPlayers >= 20) {
+            error.textContent =
+                "Սենյակը լիքն է։";
+            return;
+        }
+
+        currentRoom =
+            roomCode;
+
         currentPlayerId =
             generatePlayerId();
 
@@ -248,10 +317,14 @@ async function joinGame() {
         );
 
         openLobby();
+
         listenToRoom();
 
     } catch (errorObject) {
-        console.error(errorObject);
+        console.error(
+            "JOIN ERROR:",
+            errorObject
+        );
 
         error.textContent =
             "Միանալ չհաջողվեց։";
@@ -263,24 +336,31 @@ async function joinGame() {
 // ==========================
 
 function openLobby() {
-    document.getElementById(
-        "displayRoomCode"
-    ).textContent = currentRoom;
+    const code =
+        document.getElementById(
+            "displayRoomCode"
+        );
 
-    const hostControls =
+    if (code) {
+        code.textContent =
+            currentRoom;
+    }
+
+    const controls =
         document.getElementById(
             "hostControls"
         );
 
-    if (isHost) {
-        hostControls.style.display =
-            "block";
-    } else {
-        hostControls.style.display =
-            "none";
+    if (controls) {
+        controls.style.display =
+            isHost
+                ? "block"
+                : "none";
     }
 
-    showScreen("lobbyScreen");
+    showScreen(
+        "lobbyScreen"
+    );
 }
 
 // ==========================
@@ -288,7 +368,14 @@ function openLobby() {
 // ==========================
 
 function listenToRoom() {
-    if (!currentRoom) return;
+    if (!currentRoom) {
+        return;
+    }
+
+    if (roomListener) {
+        roomListener();
+        roomListener = null;
+    }
 
     const roomRef =
         window.dbRef(
@@ -296,30 +383,42 @@ function listenToRoom() {
             "rooms/" + currentRoom
         );
 
-    window.dbOnValue(
-        roomRef,
-        snapshot => {
-            if (!snapshot.exists()) {
-                alert(
-                    "Խաղի սենյակը փակվել է։"
+    roomListener =
+        window.dbOnValue(
+            roomRef,
+            snapshot => {
+
+                if (!snapshot.exists()) {
+                    alert(
+                        "Խաղի սենյակը փակվել է։"
+                    );
+
+                    currentRoom = null;
+                    currentPlayerId = null;
+                    isHost = false;
+
+                    goHome();
+
+                    return;
+                }
+
+                const room =
+                    snapshot.val();
+
+                renderPlayers(
+                    room.players || {}
                 );
 
-                goHome();
-                return;
+                if (
+                    room.status ===
+                    "started"
+                ) {
+                    showGameScreen(
+                        room
+                    );
+                }
             }
-
-            const room =
-                snapshot.val();
-
-            renderPlayers(
-                room.players || {}
-            );
-
-            if (room.status === "started") {
-                showGameScreen(room);
-            }
-        }
-    );
+        );
 }
 
 // ==========================
@@ -332,28 +431,38 @@ function renderPlayers(players) {
             "playersList"
         );
 
+    if (!container) {
+        return;
+    }
+
     container.innerHTML = "";
 
     const playerArray =
         Object.values(players);
 
+    playerArray.sort(
+        (a, b) =>
+            (a.joinedAt || 0) -
+            (b.joinedAt || 0)
+    );
+
     if (playerArray.length === 0) {
         container.innerHTML =
-            "<p>Դեռ խաղացողներ չկան։";
+            "<p>Դեռ խաղացողներ չկան։</p>";
+
         return;
     }
 
-    playerArray
-        .sort((a, b) =>
-            a.joinedAt - b.joinedAt
-        )
-        .forEach(player => {
+    playerArray.forEach(
+        player => {
+
             const div =
                 document.createElement(
                     "div"
                 );
 
-            div.className = "player";
+            div.className =
+                "player";
 
             const name =
                 document.createElement(
@@ -361,7 +470,8 @@ function renderPlayers(players) {
                 );
 
             name.textContent =
-                "👤 " + player.name;
+                "👤 " +
+                player.name;
 
             const badge =
                 document.createElement(
@@ -380,7 +490,8 @@ function renderPlayers(players) {
             div.appendChild(badge);
 
             container.appendChild(div);
-        });
+        }
+    );
 }
 
 // ==========================
@@ -388,7 +499,9 @@ function renderPlayers(players) {
 // ==========================
 
 async function copyRoomCode() {
-    if (!currentRoom) return;
+    if (!currentRoom) {
+        return;
+    }
 
     try {
         await navigator.clipboard.writeText(
@@ -408,39 +521,19 @@ async function copyRoomCode() {
 }
 
 // ==========================
-// ROLE SYSTEM
+// CREATE ROLES
 // ==========================
 
 function createRoles(playerCount) {
 
     const roles = [];
 
-    /*
-        4 խաղացող
-        1 Մաֆիա
-        1 Բժիշկ
-        1 Դետեկտիվ
-        1 Քաղաքացի
-
-        5 խաղացող
-        1 Մաֆիա
-        1 Բժիշկ
-        1 Դետեկտիվ
-        2 Քաղաքացի
-
-        6-8
-        2 Մաֆիա
-        1 Բժիշկ
-        1 Դետեկտիվ
-        մնացածը՝ Քաղաքացի
-
-        9+
-        մոտավորապես 1/3 Մաֆիա
-    */
-
     let mafiaCount = 1;
 
-    if (playerCount >= 6 && playerCount <= 8) {
+    if (
+        playerCount >= 6 &&
+        playerCount <= 8
+    ) {
         mafiaCount = 2;
     }
 
@@ -448,22 +541,37 @@ function createRoles(playerCount) {
         mafiaCount =
             Math.max(
                 2,
-                Math.floor(playerCount / 3)
+                Math.floor(
+                    playerCount / 3
+                )
             );
     }
 
-    for (let i = 0; i < mafiaCount; i++) {
+    for (
+        let i = 0;
+        i < mafiaCount;
+        i++
+    ) {
         roles.push("Մաֆիա");
     }
 
-    roles.push("Բժիշկ");
-    roles.push("Դետեկտիվ");
+    // Հատուկ դերերը
+    if (playerCount >= 4) {
+        roles.push("Բժիշկ");
+        roles.push("Դետեկտիվ");
+    }
 
-    while (roles.length < playerCount) {
+    // Մնացածը՝ քաղաքացի
+    while (
+        roles.length <
+        playerCount
+    ) {
         roles.push("Քաղաքացի");
     }
 
-    return shuffleArray(roles);
+    return shuffleArray(
+        roles
+    );
 }
 
 // ==========================
@@ -471,25 +579,30 @@ function createRoles(playerCount) {
 // ==========================
 
 function shuffleArray(array) {
-    const result = [...array];
+    const result =
+        [...array];
 
     for (
-        let i = result.length - 1;
+        let i =
+            result.length - 1;
         i > 0;
         i--
     ) {
+
         const j =
             Math.floor(
-                Math.random() * (i + 1)
+                Math.random() *
+                (i + 1)
             );
 
-        [
-            result[i],
-            result[j]
-        ] = [
-            result[j],
-            result[i]
-        ];
+        const temp =
+            result[i];
+
+        result[i] =
+            result[j];
+
+        result[j] =
+            temp;
     }
 
     return result;
@@ -500,22 +613,29 @@ function shuffleArray(array) {
 // ==========================
 
 async function startGame() {
-    if (!currentRoom || !isHost) {
+
+    if (!currentRoom) {
         return;
     }
 
-    if (!window.database) {
+    if (!isHost) {
+        return;
+    }
+
+    if (!firebaseReady()) {
         alert(
-            "Firebase-ը միացված չէ։"
+            "Firebase-ը ճիշտ միացված չէ։"
         );
         return;
     }
 
     try {
+
         const roomRef =
             window.dbRef(
                 window.database,
-                "rooms/" + currentRoom
+                "rooms/" +
+                currentRoom
             );
 
         const snapshot =
@@ -539,40 +659,47 @@ async function startGame() {
         const playerIds =
             Object.keys(players);
 
-        const playerCount =
+        const count =
             playerIds.length;
 
-        // Առնվազն 4 խաղացող
-        if (playerCount < 4) {
+        // ======================
+        // PLAYER COUNT
+        // ======================
+
+        if (count < 4) {
             alert(
                 "Խաղը սկսելու համար պետք է առնվազն 4 խաղացող։"
             );
             return;
         }
 
-        // Առավելագույնը 20 խաղացող
-        if (playerCount > 20) {
+        if (count > 20) {
             alert(
                 "Առավելագույնը 20 խաղացող։"
             );
             return;
         }
 
-        // Ստեղծում ենք դերերը
-        const roles =
-            createRoles(playerCount);
+        // ======================
+        // GENERATE ROLES
+        // ======================
 
-        // Խառնել խաղացողներին
-        const shuffledPlayerIds =
-            shuffleArray(playerIds);
+        const roles =
+            createRoles(count);
+
+        const shuffledPlayers =
+            shuffleArray(
+                playerIds
+            );
+
+        // ======================
+        // FIREBASE UPDATES
+        // ======================
 
         const updates = {};
 
-        shuffledPlayerIds.forEach(
+        shuffledPlayers.forEach(
             (playerId, index) => {
-
-                const role =
-                    roles[index];
 
                 updates[
                     "rooms/" +
@@ -580,7 +707,8 @@ async function startGame() {
                     "/players/" +
                     playerId +
                     "/role"
-                ] = role;
+                ] =
+                    roles[index];
 
                 updates[
                     "rooms/" +
@@ -608,20 +736,33 @@ async function startGame() {
             "rooms/" +
             currentRoom +
             "/startedAt"
-        ] = Date.now();
+        ] =
+            Date.now();
+
+        // ======================
+        // ROOT REFERENCE
+        // ======================
+
+        const rootRef =
+            window.dbRef(
+                window.database,
+                "/"
+            );
 
         await window.dbUpdate(
-            window.dbRoot,
+            rootRef,
             updates
         );
 
         console.log(
-            "🎭 Դերերը բաժանվեցին:",
+            "🎭 Roles assigned:",
             roles
         );
 
     } catch (errorObject) {
+
         console.error(
+            "START GAME ERROR:",
             errorObject
         );
 
@@ -636,27 +777,33 @@ async function startGame() {
 // ==========================
 
 function showGameScreen(room) {
-    showScreen("gameScreen");
 
-    const player =
-        room.players &&
-        room.players[currentPlayerId];
+    showScreen(
+        "gameScreen"
+    );
 
-    const gameMessage =
+    const message =
         document.getElementById(
             "gameMessage"
         );
 
-    const playerRole =
+    const roleElement =
         document.getElementById(
             "playerRole"
         );
 
+    const player =
+        room.players &&
+        room.players[
+            currentPlayerId
+        ];
+
     if (!player) {
-        gameMessage.textContent =
+
+        message.textContent =
             "Խաղացողը չի գտնվել։";
 
-        playerRole.textContent =
+        roleElement.textContent =
             "?";
 
         return;
@@ -666,54 +813,81 @@ function showGameScreen(room) {
         player.role;
 
     if (!role) {
-        gameMessage.textContent =
-            "Դերի բաժանումը դեռ չի ավարտվել։";
 
-        playerRole.textContent =
+        message.textContent =
+            "Դերը դեռ չի բաժանվել։";
+
+        roleElement.textContent =
             "...";
 
         return;
     }
 
-    playerRole.textContent =
+    roleElement.textContent =
         role;
 
-    playerRole.className = "";
+    roleElement.className = "";
 
-    if (role === "Մաֆիա") {
-        playerRole.classList.add(
+    // ======================
+    // MAFIA
+    // ======================
+
+    if (
+        role === "Մաֆիա"
+    ) {
+
+        roleElement.classList.add(
             "role-mafia"
         );
 
-        gameMessage.textContent =
-            "Դու Մաֆիա ես։ Գաղտնի պահիր քո դերը։";
+        message.textContent =
+            "🔫 Դու Մաֆիա ես։ Գաղտնի պահիր քո դերը։";
     }
 
-    else if (role === "Բժիշկ") {
-        playerRole.classList.add(
+    // ======================
+    // DOCTOR
+    // ======================
+
+    else if (
+        role === "Բժիշկ"
+    ) {
+
+        roleElement.classList.add(
             "role-doctor"
         );
 
-        gameMessage.textContent =
-            "Դու Բժիշկ ես։";
+        message.textContent =
+            "🩺 Դու Բժիշկ ես։";
     }
 
-    else if (role === "Դետեկտիվ") {
-        playerRole.classList.add(
+    // ======================
+    // DETECTIVE
+    // ======================
+
+    else if (
+        role === "Դետեկտիվ"
+    ) {
+
+        roleElement.classList.add(
             "role-detective"
         );
 
-        gameMessage.textContent =
-            "Դու Դետեկտիվ ես։";
+        message.textContent =
+            "🔎 Դու Դետեկտիվ ես։";
     }
 
+    // ======================
+    // CITIZEN
+    // ======================
+
     else {
-        playerRole.classList.add(
+
+        roleElement.classList.add(
             "role-citizen"
         );
 
-        gameMessage.textContent =
-            "Դու Քաղաքացի ես։ Փորձիր գտնել Մաֆիային։";
+        message.textContent =
+            "👤 Դու Քաղաքացի ես։ Փորձիր գտնել Մաֆիային։";
     }
 }
 
@@ -722,9 +896,15 @@ function showGameScreen(room) {
 // ==========================
 
 async function leaveGame() {
-    if (currentRoom && currentPlayerId) {
 
-        try {
+    try {
+
+        if (
+            currentRoom &&
+            currentPlayerId &&
+            firebaseReady()
+        ) {
+
             const playerRef =
                 window.dbRef(
                     window.database,
@@ -738,12 +918,19 @@ async function leaveGame() {
                 playerRef,
                 null
             );
-
-        } catch (errorObject) {
-            console.error(
-                errorObject
-            );
         }
+
+    } catch (errorObject) {
+
+        console.error(
+            "LEAVE ERROR:",
+            errorObject
+        );
+    }
+
+    if (roomListener) {
+        roomListener();
+        roomListener = null;
     }
 
     currentRoom = null;
@@ -754,7 +941,7 @@ async function leaveGame() {
 }
 
 // ==========================
-// ROOM CODE AUTO FORMAT
+// ROOM CODE INPUT
 // ==========================
 
 const roomCodeInput =
@@ -763,9 +950,11 @@ const roomCodeInput =
     );
 
 if (roomCodeInput) {
+
     roomCodeInput.addEventListener(
         "input",
         function () {
+
             this.value =
                 this.value
                     .toUpperCase()
@@ -773,13 +962,16 @@ if (roomCodeInput) {
                         /[^A-Z0-9]/g,
                         ""
                     )
-                    .substring(0, 6);
+                    .substring(
+                        0,
+                        6
+                    );
         }
     );
 }
 
 // ==========================
-// NAME ENTER SUPPORT
+// ENTER KEY
 // ==========================
 
 const hostNameInput =
@@ -788,10 +980,15 @@ const hostNameInput =
     );
 
 if (hostNameInput) {
+
     hostNameInput.addEventListener(
         "keydown",
         function (event) {
-            if (event.key === "Enter") {
+
+            if (
+                event.key ===
+                "Enter"
+            ) {
                 createGame();
             }
         }
@@ -804,10 +1001,15 @@ const playerNameInput =
     );
 
 if (playerNameInput) {
+
     playerNameInput.addEventListener(
         "keydown",
         function (event) {
-            if (event.key === "Enter") {
+
+            if (
+                event.key ===
+                "Enter"
+            ) {
                 joinGame();
             }
         }
@@ -815,5 +1017,6 @@ if (playerNameInput) {
 }
 
 console.log(
-    "🎭 Mafia Online — Role System Ready"
+    "🎭 Mafia Armenia — app.js loaded"
 );
+```
