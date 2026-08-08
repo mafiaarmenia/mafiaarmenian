@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="hy">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mafia Online</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="app">
+
+    <header class="header">
+        <div class="logo">🎭 <span>MAFIA</span></div>
+        <div class="status">● Online</div>
+    </header>
+
+    <main>
+
+        <!-- HOME -->
+        <section id="homeScreen" class="screen active">
+
+            <div class="hero">
+
+                <div class="hero-icon">🎭</div>
+
+                <h1>Mafia Online</h1>
+
+                <p>
+                    Ստեղծիր խաղ և խաղա ընկերներիդ հետ
+                    տարբեր սարքերից։
+                </p>
+
+                <div class="buttons">
+
+                    <button class="primary-btn" onclick="showCreate()">
+                        🎮 Ստեղծել խաղ
+                    </button>
+
+                    <button class="secondary-btn" onclick="showJoin()">
+                        🚪 Միանալ խաղին
+                    </button>
+
+                </div>
+
+            </div>
+
+            <div class="features">
+
+                <div class="feature">
+                    <div>🌐</div>
+                    <h3>Online</h3>
+                    <p>Տարբեր սարքերից</p>
+                </div>
+
+                <div class="feature">
+                    <div>👥</div>
+                    <h3>Multiplayer</h3>
+                    <p>Միացրու ընկերներիդ</p>
+                </div>
+
+                <div class="feature">
+                    <div>🎭</div>
+                    <h3>Մաֆիա</h3>
+                    <p>Գաղտնի դերեր</p>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- CREATE -->
+        <section id="createScreen" class="screen">
+
+            <div class="card">
+
+                <button class="back-btn" onclick="goHome()">
+                    ← Հետ
+                </button>
+
+                <div class="big-icon">🎮</div>
+
+                <h2>Ստեղծել խաղ</h2>
+
+                <p>Գրիր քո անունը</p>
+
+                <input
+                    id="hostName"
+                    type="text"
+                    maxlength="20"
+                    placeholder="Օրինակ՝ Manvel"
+                >
+
+                <button class="primary-btn full" onclick="createGame()">
+                    Ստեղծել խաղ
+                </button>
+
+                <div id="createError" class="error"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- JOIN -->
+        <section id="joinScreen" class="screen">
+
+            <div class="card">
+
+                <button class="back-btn" onclick="goHome()">
+                    ← Հետ
+                </button>
+
+                <div class="big-icon">🚪</div>
+
+                <h2>Միանալ խաղին</h2>
+
+                <p>Գրիր քո անունը և սենյակի կոդը</p>
+
+                <input
+                    id="playerName"
+                    type="text"
+                    maxlength="20"
+                    placeholder="Քո անունը"
+                >
+
+                <input
+                    id="roomCode"
+                    type="text"
+                    maxlength="6"
+                    placeholder="Օրինակ՝ A7K92B"
+                >
+
+                <button class="primary-btn full" onclick="joinGame()">
+                    Միանալ
+                </button>
+
+                <div id="joinError" class="error"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- LOBBY -->
+        <section id="lobbyScreen" class="screen">
+
+            <div class="lobby">
+
+                <div class="lobby-header">
+
+                    <div>
+                        <span class="small-title">Խաղի կոդ</span>
+
+                        <div class="room-code">
+                            <span id="displayRoomCode">------</span>
+
+                            <button onclick="copyRoomCode()">
+                                📋
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="secondary-btn" onclick="leaveGame()">
+                        Դուրս գալ
+                    </button>
+
+                </div>
+
+
+                <div class="player-box">
+
+                    <h2>👥 Խաղացողներ</h2>
+
+                    <div id="playersList">
+                        <!-- players -->
+                    </div>
+
+                </div>
+
+
+                <div id="hostControls" class="host-controls">
+
+                    <p>
+                        Երբ բոլոր խաղացողները միանան,
+                        սկսիր խաղը։
+                    </p>
+
+                    <button
+                        class="primary-btn full"
+                        onclick="startGame()"
+                    >
+                        🎭 Սկսել խաղը
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- GAME -->
+        <section id="gameScreen" class="screen">
+
+            <div class="card game-card">
+
+                <div class="big-icon">🎭</div>
+
+                <h2>Խաղը սկսվեց!</h2>
+
+                <p id="gameMessage">
+                    Սպասեք...
+                </p>
+
+                <div class="role-box">
+
+                    <span>Քո դերը</span>
+
+                    <strong id="playerRole">
+                        ?
+                    </strong>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+        Mafia Online © 2026
+    </footer>
+
+</div>
+
+
+<!-- FIREBASE -->
+
+<script type="module">
+
+    import { initializeApp }
+        from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+
+    import {
+        getDatabase,
+        ref,
+        set,
+        get,
+        update,
+        onValue
+    }
+    from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
+
+
+    const firebaseConfig = {
+
+        apiKey: "AIzaSyCWJjo1UZbHxKAQ3GbJF17IFKP3qem9Mq4",
+
+        authDomain:
+            "mafia-online-ca02c.firebaseapp.com",
+
+        databaseURL:
+            "https://mafia-online-ca02c-default-rtdb.firebaseio.com",
+
+        projectId:
+            "mafia-online-ca02c",
+
+        storageBucket:
+            "mafia-online-ca02c.firebasestorage.app",
+
+        messagingSenderId:
+            "316835513975",
+
+        appId:
+            "1:316835513975:web:37e61d57c81a7ce4506872"
+    };
+
+
+    const app = initializeApp(firebaseConfig);
+
+    const database = getDatabase(app);
+
+
+    window.database = database;
+    window.dbRef = ref;
+    window.dbSet = set;
+    window.dbGet = get;
+    window.dbUpdate = update;
+    window.dbOnValue = onValue;
+
+
+    console.log("🔥 Firebase-ը միացված է!");
+
+    const script = document.createElement("script");
+
+    script.src = "app.js";
+
+    document.body.appendChild(script);
+
+</script>
+
+</body>
+</html>
